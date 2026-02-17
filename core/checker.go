@@ -6,11 +6,15 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
 	"sync"
 )
 
-func getUpdate(hash string) (bool, error) {
-	const baseURL string = "https://api.modrinth.com/v2"
+const baseURL string = "https://api.modrinth.com/v2"
+
+var m ModrinthJSON
+
+func getFile(hash string) (bool, error) {
 	res, err := http.Get(fmt.Sprintf("%v/version_file/%v", baseURL, hash))
 	if err != nil {
 		fmt.Println("Error in getting the data from modrinth")
@@ -30,7 +34,6 @@ func getUpdate(hash string) (bool, error) {
 		return false, fmt.Errorf("API error: %s", res.Status)
 	}
 
-	var m ModrinthJSON
 	e := json.Unmarshal(body, &m)
 
 	if e != nil {
@@ -51,7 +54,7 @@ func CheckFunInModrinth(mods *map[string]*Mod) *map[string]*Mod {
 			defer wg.Done()
 
 			// GetUpdate gives if mod is from modrinth or not
-			fromModrinth, err := getUpdate(mod.Hash)
+			fromModrinth, err := getFile(mod.Hash)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -59,7 +62,12 @@ func CheckFunInModrinth(mods *map[string]*Mod) *map[string]*Mod {
 		}(mod)
 
 		wg.Wait()
+		fmt.Println(isUpdateNeeded("1.21.1"))
 	}
 
 	return mods
+}
+
+func isUpdateNeeded(preferredVersion string) bool {
+	return slices.Contains(m.GameVersions, preferredVersion)
 }

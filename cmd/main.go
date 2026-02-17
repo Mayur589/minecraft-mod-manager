@@ -17,7 +17,7 @@ func main() {
 		log.Fatal(err)
 
 	}
-	mods = core.CheckFunInModrinth(mods)
+	core.CheckFunInModrinth(mods)
 
 	for _, mod := range *mods {
 		fmt.Printf("%v, %v\n", mod.ID, mod.IsModrinth)
