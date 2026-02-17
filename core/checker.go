@@ -6,9 +6,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
 )
 
-func GetUpdate(hash string) (bool, error) {
+func getUpdate(hash string) (bool, error) {
 	const baseURL string = "https://api.modrinth.com/v2"
 	res, err := http.Get(fmt.Sprintf("%v/version_file/%v", baseURL, hash))
 	if err != nil {
@@ -21,6 +22,7 @@ func GetUpdate(hash string) (bool, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode == http.StatusNotFound {
+		fmt.Println(res.StatusCode)
 		return false, nil
 	}
 
@@ -35,9 +37,29 @@ func GetUpdate(hash string) (bool, error) {
 		log.Fatal(e)
 	}
 
-	// fmt.Println(m.GameVersions, m.Name, m.VersionNumber)
-	fmt.Println(m.Files)
-
-	// fmt.Printf("%s", body)
 	return true, nil
+}
+
+// CheckFunInModrinth Checks if the mod is in the modrinth or not and fills mod[IsModrinth] value to boolean
+func CheckFunInModrinth(mods *map[string]*Mod) *map[string]*Mod {
+
+	for _, mod := range *mods {
+		var wg sync.WaitGroup
+		wg.Add(1)
+
+		go func(mod *Mod) {
+			defer wg.Done()
+
+			// GetUpdate gives if mod is from modrinth or not
+			fromModrinth, err := getUpdate(mod.Hash)
+			if err != nil {
+				log.Fatal(err)
+			}
+			mod.IsModrinth = fromModrinth
+		}(mod)
+
+		wg.Wait()
+	}
+
+	return mods
 }

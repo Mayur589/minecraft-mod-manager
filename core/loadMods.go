@@ -12,20 +12,7 @@ import (
 	"strings"
 )
 
-type Mod struct {
-	ID      string
-	Version string
-	Path    string
-	Hash    string
-}
-
-type jsonModFile struct {
-	ID      string `json:"id"`
-	Version string `json:"version"`
-	Name    string `json:"name"`
-}
-
-func GiveHash(dir string) (map[string]*Mod, error) {
+func GiveHash(dir string) (*map[string]*Mod, error) {
 	path := dir
 
 	// map
@@ -54,7 +41,7 @@ func GiveHash(dir string) (map[string]*Mod, error) {
 
 		}
 	}
-	return mods, nil
+	return &mods, nil
 
 }
 

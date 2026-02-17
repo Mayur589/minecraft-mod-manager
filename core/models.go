@@ -12,3 +12,17 @@ type ModrinthFile struct {
 	Filename string `json:"filename"`
 	Primary  bool   `json:"primary"`
 }
+
+type Mod struct {
+	ID         string
+	Version    string
+	Path       string
+	Hash       string
+	IsModrinth bool
+}
+
+type jsonModFile struct {
+	ID      string `json:"id"`
+	Version string `json:"version"`
+	Name    string `json:"name"`
+}
