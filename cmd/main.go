@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"minecraft-mod-updater/core"
-	"sync"
 )
 
 func main() {
@@ -18,19 +17,9 @@ func main() {
 		log.Fatal(err)
 
 	}
+	mods = core.CheckFunInModrinth(mods)
 
-	// fmt.Println(mods)
-
-	for _, modName := range mods {
-		// fmt.Printf("%T\n", modName.Hash)
-		var wg sync.WaitGroup
-		fmt.Printf("%s: \n", modName.ID)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			core.GetUpdate(modName.Hash)
-		}()
-
-		wg.Wait()
+	for _, mod := range *mods {
+		fmt.Printf("%v, %v\n", mod.ID, mod.IsModrinth)
 	}
 }
