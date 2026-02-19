@@ -14,11 +14,13 @@ type ModrinthFile struct {
 }
 
 type Mod struct {
-	ID         string
-	Version    string
-	Path       string
-	Hash       string
-	IsModrinth bool
+	ID          string
+	Version     string
+	Path        string
+	Hash        string
+	IsModrinth  bool
+	Files       []ModrinthFile
+	GameVersion []string
 }
 
 type jsonModFile struct {
