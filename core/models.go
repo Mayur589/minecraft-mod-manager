@@ -14,6 +14,7 @@ type ModrinthFile struct {
 }
 
 type Mod struct {
+	Name        string
 	ID          string
 	Version     string
 	Path        string
@@ -28,3 +29,10 @@ type jsonModFile struct {
 	Version string `json:"version"`
 	Name    string `json:"name"`
 }
+
+type Version struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+}
+
+type File map[string]Version

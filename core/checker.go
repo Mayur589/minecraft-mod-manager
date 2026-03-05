@@ -1,122 +1,123 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
-	"os"
-	"slices"
 	"sync"
 )
 
-const baseURL string = "https://api.modrinth.com/v2"
+const baseURL = "https://api.modrinth.com/v2"
 
-// getFile helper function to extract the json response from the modrinth api
-func getFile(mod *Mod) (bool, error) {
-	res, err := http.Get(fmt.Sprintf("%v/version_file/%v", baseURL, mod.Hash))
-	var modrinthJSON ModrinthJSON
+func GetModIds(mods map[string]*Mod) error {
+	CheckIfInModrinth(mods)
+
+	url := fmt.Sprintf("%s/version_files", baseURL)
+	// url := "https://webhook.site/536486f9-f38c-4681-a555-71e168a233dc"
+
+	hashes := make([]string, 0, len(mods))
+
+	for _, mod := range mods {
+		if mod.IsModrinth {
+			hashes = append(hashes, mod.Hash)
+		}
+	}
+
+	jsonData, err := json.Marshal(struct {
+		Hashes    []string `json:"hashes"`
+		Algorithm string   `json:"algorithm"`
+	}{
+		Hashes:    hashes,
+		Algorithm: "sha1",
+	})
+	if err != nil {
+		fmt.Println("Error in parsing body to JSON")
+		return err
+	}
+
+	res, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if res.StatusCode == http.StatusNotFound {
+		fmt.Println("This hash is not possible ", res.StatusCode)
+		return err
+	}
 
 	if err != nil {
-		fmt.Println("Error in getting the data from modrinth")
-		log.Fatal(err)
-		return false, err
+		fmt.Println("Error in getting response from api (POST)")
+		return err
 	}
-
-	body, _ := io.ReadAll(res.Body)
 	defer res.Body.Close()
 
-	if res.StatusCode == http.StatusNotFound {
-		return false, nil
+	bodyBytes, err := io.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println("Error in converting response into bytes")
+		return err
 	}
 
-	if res.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("API error: %s", res.Status)
+	var m File
+	if err := json.Unmarshal(bodyBytes, &m); err != nil {
+		fmt.Println("Error in unparsing json to struct")
+		return nil
 	}
 
-	e := json.Unmarshal(body, &modrinthJSON)
-
-	if e != nil {
-		log.Fatal(e)
+	for _, mod := range mods {
+		mod.ID = m[mod.Hash].ProjectID
+		fmt.Println(mod.ID)
 	}
-	mod.Files = modrinthJSON.Files
-	mod.GameVersion = modrinthJSON.GameVersions
-	return true, nil
-}
 
-// CheckFunInModrinth Checks if the mod is in the modrinth or not and fills mod[IsModrinth] value to boolean
-func CheckFunInModrinth(mods *map[string]*Mod) *map[string]*Mod {
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(mods))
 
-	for _, mod := range *mods {
-		var wg sync.WaitGroup
+	for _, mod := range mods {
 		wg.Add(1)
-
-		go func(mod *Mod) {
+		go func(m *Mod) {
 			defer wg.Done()
-
-			// GetUpdate gives if mod is from modrinth or not
-			fromModrinth, err := getFile(mod)
-			if err != nil {
-				log.Fatal(err)
-			}
-			mod.IsModrinth = fromModrinth
-
+			errChan <- UpdateMod(m, "1.16.5")
 		}(mod)
 
-		wg.Wait()
+		go func() {
+			wg.Wait()
+			close(errChan)
+		}()
 
+		for err := range errChan {
+			if err != nil {
+				return err
+			}
+		}
 	}
 
-	for _, mod := range *mods {
-		update(mod)
-	}
-	return mods
+	return nil
 }
 
-// isUpdateNeeded helper function used to check if update is needed or not
-func isUpdateNeeded(gameVersion []string, preferredVersion string) bool {
-	return slices.Contains(gameVersion, preferredVersion)
+// CheckInModrinth :- HElPER FUNCTION (To check if a mod is listed in modrinth)
+func CheckIfInModrinth(mods map[string]*Mod) {
+	for _, mod := range mods {
+		url := fmt.Sprintf("%s/version_file/%s", baseURL, mod.Hash)
+		res, err := http.Get(url)
+		if res.StatusCode == http.StatusNotFound {
+			mod.IsModrinth = false
+			continue
+		}
+		mod.IsModrinth = true
+		if err != nil {
+			fmt.Println("Error in identifying the non-modrinth file")
+			return
+		}
+		res.Body.Close()
+	}
 }
 
-func update(mod *Mod) {
-	var downloadURL string
-	var targetFileName string
-
-	for _, file := range mod.Files {
-		downloadURL = file.Url
-		targetFileName = file.Filename
-	}
-
-	downloadMod(downloadURL, targetFileName)
-}
-
-func downloadMod(url string, name string) {
-
-	if url == "" {
-		fmt.Println("Empty URL detected")
-		return
-	}
-
+func UpdateMod(mod *Mod, game_version string) error {
+	url := fmt.Sprintf("%s/project/%s/version?loaders=[\"fabric\"]&game_versions=[\"%s\"]", baseURL, mod.ID, game_version)
 	res, err := http.Get(url)
-
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("Error in getting response from modrinth for Update")
+		return err
 	}
 	defer res.Body.Close()
 
-	fileName := "/Users/mayur/Downloads/" + name
-	out, err := os.Create(fileName)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer out.Close()
-
-	_, err = io.Copy(out, res.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	fmt.Println(res)
+	return nil
 }

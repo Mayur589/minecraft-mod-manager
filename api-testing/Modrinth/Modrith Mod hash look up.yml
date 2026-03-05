@@ -1,0 +1,36 @@
+info:
+  name: Modrith Mod hash look up
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: https://api.modrinth.com/v2/version_files
+  body:
+    type: json
+    data: |-
+      {
+        "hashes": [
+          "21e19758c0ba258c2a384ec1b77caa415fc482b0",
+          "632c7565ba0fbc033aa4574e1ae6919f277fe03b",
+          "1bb1f8ade981e1e388cb9f114fa515c2294e0019",
+          "df4303deb02246cde9c3a9b82c165bec3f37dada",
+          "e2e88c0b2286148e9547eb23d95d2e30e60ad753",
+          "2d5e292f9673d588706e2c79cc4e3e75b21f35d1",
+          "7825091272979cd8ed4f88f13408fdbba08f9e8d",
+          "45c2e7e3c8fe6474fe9a3ad676d497a70e88cd21",
+          "b9617fa5722a8cdc321781a2b6dd97217fcfdc2a",
+          "c0a8ac43af978f8d8245bf033670944eb90d7b2e",
+          "4c224606a963bce223db5b27edb4959ecf40d4ee",
+          "ac8d3592e92d590a2f63a227671df2bacbd03d30",
+          "f514f41306bdc6fcbaf607df21fa509996b2f5b9"
+        ],
+        "algorithm": "sha1"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
