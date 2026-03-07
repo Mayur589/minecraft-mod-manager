@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: https://api.modrinth.com/v2/version/
+  url: https://api.modrinth.com/v2/version_file/4c224606a963bce223db5b27edb4959ecf40d4ee
   auth: inherit
 
 settings:

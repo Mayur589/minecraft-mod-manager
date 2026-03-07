@@ -22,6 +22,7 @@ type Mod struct {
 	IsModrinth  bool
 	Files       []ModrinthFile
 	GameVersion []string
+	DownloadURL string
 }
 
 type jsonModFile struct {

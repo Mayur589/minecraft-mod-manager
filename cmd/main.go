@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"sync"
 
 	"minecraft-mod-updater/core"
 )
@@ -14,14 +16,36 @@ func main() {
 		log.Fatal(err)
 	}
 
-	core.GetModIds(mods)
+	if err := core.GetModIds(mods); err != nil {
+		fmt.Println(err)
+	}
 
-	// for _, mod := range mods {
-	// 	fmt.Println(mod.Hash)
-	// }
+	// Concurrent Updates with a WaitGroup
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(mods))
 
-	// if err = core.CheckInModrinth(mods, "1.16.5", downloadPath); err != nil {
-	// 	fmt.Println("Error in downloading update")
-	// 	log.Fatal(err)
-	// }
+	for _, mod := range mods {
+		if !mod.IsModrinth {
+			continue
+		}
+
+		wg.Add(1)
+		go func(m *core.Mod) {
+			defer wg.Done()
+			if err := core.UpdateMod(m, "1.20.1"); err != nil {
+				errChan <- err
+			}
+		}(mod)
+	}
+
+	go func() {
+		wg.Wait()
+		close(errChan)
+	}()
+
+	for err := range errChan {
+		if err != nil {
+			fmt.Println(fmt.Errorf("error: %w", err))
+		}
+	}
 }

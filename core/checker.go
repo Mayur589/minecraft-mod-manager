@@ -4,113 +4,65 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"sync"
+	"net/url"
 )
 
 const baseURL = "https://api.modrinth.com/v2"
 
 func GetModIds(mods map[string]*Mod) error {
-	CheckIfInModrinth(mods)
-
-	url := fmt.Sprintf("%s/version_files", baseURL)
-	// url := "https://webhook.site/536486f9-f38c-4681-a555-71e168a233dc"
-
 	hashes := make([]string, 0, len(mods))
-
 	for _, mod := range mods {
-		if mod.IsModrinth {
-			hashes = append(hashes, mod.Hash)
-		}
+		hashes = append(hashes, mod.Hash)
 	}
 
-	jsonData, err := json.Marshal(struct {
-		Hashes    []string `json:"hashes"`
-		Algorithm string   `json:"algorithm"`
-	}{
-		Hashes:    hashes,
-		Algorithm: "sha1",
+	payload, _ := json.Marshal(map[string]any{
+		"hashes":    hashes,
+		"algorithm": "sha1",
 	})
+
+	resp, err := http.Post(baseURL+"/version_files", "application/json", bytes.NewBuffer(payload))
 	if err != nil {
-		fmt.Println("Error in parsing body to JSON")
+		return fmt.Errorf("bulk check failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("api returned status: %d", resp.StatusCode)
+	}
+
+	var results map[string]struct {
+		ProjectID string `json:"project_id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
 		return err
 	}
 
-	res, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
-	if res.StatusCode == http.StatusNotFound {
-		fmt.Println("This hash is not possible ", res.StatusCode)
-		return err
-	}
-
-	if err != nil {
-		fmt.Println("Error in getting response from api (POST)")
-		return err
-	}
-	defer res.Body.Close()
-
-	bodyBytes, err := io.ReadAll(res.Body)
-	if err != nil {
-		fmt.Println("Error in converting response into bytes")
-		return err
-	}
-
-	var m File
-	if err := json.Unmarshal(bodyBytes, &m); err != nil {
-		fmt.Println("Error in unparsing json to struct")
-		return nil
-	}
-
+	// Update local mod state based on results
 	for _, mod := range mods {
-		mod.ID = m[mod.Hash].ProjectID
-		fmt.Println(mod.ID)
-	}
-
-	var wg sync.WaitGroup
-	errChan := make(chan error, len(mods))
-
-	for _, mod := range mods {
-		wg.Add(1)
-		go func(m *Mod) {
-			defer wg.Done()
-			errChan <- UpdateMod(m, "1.16.5")
-		}(mod)
-
-		go func() {
-			wg.Wait()
-			close(errChan)
-		}()
-
-		for err := range errChan {
-			if err != nil {
-				return err
-			}
+		if data, found := results[mod.Hash]; found {
+			mod.IsModrinth = true
+			mod.ID = data.ProjectID
+		} else {
+			mod.IsModrinth = false
 		}
 	}
 
 	return nil
 }
 
-// CheckInModrinth :- HElPER FUNCTION (To check if a mod is listed in modrinth)
-func CheckIfInModrinth(mods map[string]*Mod) {
-	for _, mod := range mods {
-		url := fmt.Sprintf("%s/version_file/%s", baseURL, mod.Hash)
-		res, err := http.Get(url)
-		if res.StatusCode == http.StatusNotFound {
-			mod.IsModrinth = false
-			continue
-		}
-		mod.IsModrinth = true
-		if err != nil {
-			fmt.Println("Error in identifying the non-modrinth file")
-			return
-		}
-		res.Body.Close()
+// UpdateMod :- Update the mod to preffered version
+func UpdateMod(mod *Mod, gameVersion string) error {
+	if !mod.IsModrinth {
+		fmt.Println(mod.Name, " is not in the modrinth")
+		return nil
 	}
-}
 
-func UpdateMod(mod *Mod, game_version string) error {
-	url := fmt.Sprintf("%s/project/%s/version?loaders=[\"fabric\"]&game_versions=[\"%s\"]", baseURL, mod.ID, game_version)
+	params := url.Values{}
+	params.Add("loaders", "[\"fabric\"]")
+	params.Add("game_versions", fmt.Sprintf("[\"%s\"]", gameVersion))
+
+	url := fmt.Sprintf("%s/project/%s/version?%s", baseURL, mod.ID, params.Encode())
 	res, err := http.Get(url)
 	if err != nil {
 		fmt.Println("Error in getting response from modrinth for Update")
@@ -118,6 +70,23 @@ func UpdateMod(mod *Mod, game_version string) error {
 	}
 	defer res.Body.Close()
 
-	fmt.Println(res)
+	var results []struct {
+		Files []struct {
+			URL      string `json:"url"`
+			FileName string `json:"filename"`
+		} `json:"files"`
+	}
+
+	if err := json.NewDecoder(res.Body).Decode(&results); err != nil {
+		fmt.Println(res.StatusCode)
+		return fmt.Errorf("failed to decode JSON for %s: %w", mod.Name, err)
+	}
+	// Safety check: Did we actually get any versions back?
+	if len(results) > 0 && len(results[0].Files) > 0 {
+		mod.DownloadURL = results[0].Files[0].URL
+	} else {
+		fmt.Printf("No compatible versions found for %s on %s\n", mod.Name, gameVersion)
+	}
+
 	return nil
 }
